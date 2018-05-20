@@ -1,0 +1,4 @@
+Leonardo:blue:katana
+Donatello:purple:bo
+Raphael:red:sai
+Michelangelo:orange:nunchucks

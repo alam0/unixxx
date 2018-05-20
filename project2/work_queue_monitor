@@ -1,0 +1,78 @@
+#!/usr/bin/env python2.7
+
+import collections
+import os
+import sys
+import time
+
+# https://github.com/cooperative-computing-lab/cctools/blob/master/work_queue/src/work_queue.c
+
+def humanize_time(s):
+    units = (('seconds', 60), ('minutes', 60), ('hours', 24), ('days', 7), ('weeks', 52))
+    for unit, step in units:
+        if s < step:
+            break
+        s /= step
+            
+    return '{:0.2f} {}'.format(s, unit)
+
+def int_or_float(s):
+    try:
+        return int(s)
+    except ValueError:
+        return float(s)
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print >> sys.stderr, 'Usage: {} logfile'.format(os.path.basename(sys.argv[0]))
+        sys.exit(1)
+
+    stream   = open(sys.argv[1], 'r')
+    fields   = stream.readline()[1:].strip().split()
+    LogEntry = collections.namedtuple('LogEntry', fields)
+    finished = False
+
+    while not finished:
+        line = stream.readline()
+        pos  = stream.tell()
+        if not line:
+            stream.seek(pos)
+            time.sleep(1)
+            continue
+        if line.startswith('#'):
+            continue
+
+        try:
+            entry = LogEntry(*map(int_or_float, line.rstrip().split()))
+        except ValueError:
+            continue
+
+        try:
+            progress = entry.total_tasks_complete * 100.0 / entry.total_tasks_dispatched
+        except ZeroDivisionError:
+            progress = 0
+
+        elapsed_time = time.time() - entry.start_time/1000000.0
+        task_rate    = entry.total_tasks_complete * 60.0 / elapsed_time
+        #finished     = entry.total_tasks_complete and entry.total_tasks_complete == entry.total_tasks_dispatched
+        try:
+            estimated_time = (entry.total_tasks_dispatched - entry.total_tasks_complete) / task_rate * 60.0
+        except ZeroDivisionError:
+            estimated_time = 0
+
+        print '''
+Start Time:     {entry.start_time}
+Elasped Time:   {elapsed_time}
+Task Rate:      {task_rate:0.2f} (task/min)
+Workers Init:   {entry.workers_init}
+Workers Idle:   {entry.workers_idle}
+Workers Busy:   {entry.workers_busy}
+Progress:       {entry.total_tasks_complete} / {entry.total_tasks_dispatched} ({progress:0.2f}%)
+Estimated Time: {estimated_time}
+        '''.format(
+            entry          = entry,
+            progress       = progress,
+            elapsed_time   = humanize_time(elapsed_time),
+            task_rate      = task_rate,
+            estimated_time = humanize_time(estimated_time)
+        )
